@@ -1,0 +1,6 @@
+google-adk
+google-genai
+google-cloud-logging
+google-cloud-container
+python-dotenv
+fpdf2

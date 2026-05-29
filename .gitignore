@@ -1,0 +1,5 @@
+.env
+.adk/
+__pycache__/
+*.pyc
+Formal_RCA_Report.pdf
