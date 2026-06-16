@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lumen SRE Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f6f2ea;
+      --panel: #fffdf9;
+      --panel-soft: #f0e7da;
+      --line: #ded2c1;
+      --text: #22170f;
+      --muted: #6f5d50;
+      --brand: #b54a22;
+      --accent: #146d68;
+      --output: #2a1c14;
+      --shadow: 0 10px 28px rgba(78, 55, 34, 0.08);
+      --radius: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Space Grotesk", "Segoe UI", sans-serif;
+      color: var(--text);
+      background: linear-gradient(180deg, #fbf8f3 0%, var(--bg) 100%);
+    }
+
+    .app {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 20px 16px 28px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      padding: 14px 16px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+
+    .subtitle {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .badges {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: var(--panel-soft);
+      color: var(--muted);
+      font-size: 0.78rem;
+      white-space: nowrap;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1.4fr 0.9fr;
+      gap: 14px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px;
+    }
+
+    .stack {
+      display: grid;
+      gap: 14px;
+    }
+
+    h2 {
+      margin: 0 0 6px;
+      font-size: 1rem;
+    }
+
+    .hint {
+      margin: 0 0 12px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+
+    .label {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    textarea,
+    input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      padding: 12px 13px;
+      font: inherit;
+      color: var(--text);
+      outline: none;
+    }
+
+    textarea:focus,
+    input:focus {
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(181, 74, 34, 0.08);
+    }
+
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 14px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+
+    .primary {
+      background: var(--brand);
+      color: #fff;
+    }
+
+    .secondary {
+      background: #fff;
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+
+    .accent {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .status {
+      min-height: 20px;
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .output {
+      margin-top: 12px;
+      min-height: 230px;
+      padding: 14px;
+      border-radius: 14px;
+      background: var(--output);
+      color: #f5eee7;
+      font-family: "IBM Plex Mono", Consolas, monospace;
+      font-size: 0.9rem;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .output.small {
+      min-height: 150px;
+    }
+
+    @media (max-width: 840px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .app {
+        padding: 14px 12px 24px;
+      }
+
+      .row {
+        grid-template-columns: 1fr;
+      }
+
+      .toolbar button {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="topbar">
+      <div>
+        <div class="title">Lumen SRE Console</div>
+        <div class="subtitle">Simple browser UI for your agent, snapshot tools, and report flow.</div>
+      </div>
+      <div class="badges">
+        <span class="badge" id="healthMetric">Health: ...</span>
+        <span class="badge" id="actionMetric">Last action: Idle</span>
+        <span class="badge" id="userMetric">User: developer</span>
+      </div>
+    </section>
+
+    <section class="layout">
+      <div class="stack">
+        <section class="card">
+          <h2>Agent Query</h2>
+          <p class="hint">Ask the SRE agent a question and see the answer below.</p>
+
+          <label class="label" for="queryInput">Question</label>
+          <textarea id="queryInput">Show a 30-day historical resource analysis for the default namespace.</textarea>
+
+          <div class="row">
+            <div>
+              <label class="label" for="userIdInput">User ID</label>
+              <input id="userIdInput" value="developer">
+            </div>
+            <div>
+              <label class="label" for="recipientInput">Recipient email</label>
+              <input id="recipientInput" placeholder="team@lumen.com">
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <button class="primary" id="runQueryButton">Run query</button>
+            <button class="accent" id="sendReportButton">Send report</button>
+          </div>
+
+          <div class="status" id="queryStatus"></div>
+          <div class="status" id="reportStatus"></div>
+          <pre class="output" id="mainOutput">Waiting for your first query.</pre>
+        </section>
+      </div>
+
+      <div class="stack">
+        <section class="card">
+          <h2>Quick Tools</h2>
+          <p class="hint">Use the raw project tools without typing a full prompt.</p>
+
+          <label class="label" for="contextTopicInput">Runbook topic</label>
+          <input id="contextTopicInput" value="cost optimization">
+
+          <div class="toolbar">
+            <button class="secondary" id="loadSnapshotButton">Snapshot</button>
+            <button class="secondary" id="loadCostButton">Cost</button>
+            <button class="secondary" id="loadWorkloadsButton">Workloads</button>
+            <button class="secondary" id="loadContextButton">Context</button>
+          </div>
+
+          <pre class="output small" id="snapshotOutput">Tool output will appear here.</pre>
+        </section>
+
+        <section class="card">
+          <h2>Runbook</h2>
+          <p class="hint">Context from your local runbook file.</p>
+          <pre class="output small" id="contextOutput">Runbook context will appear here.</pre>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const state = { lastOutput: "" };
+
+    const elements = {
+      healthMetric: document.getElementById("healthMetric"),
+      actionMetric: document.getElementById("actionMetric"),
+      userMetric: document.getElementById("userMetric"),
+      queryInput: document.getElementById("queryInput"),
+      userIdInput: document.getElementById("userIdInput"),
+      recipientInput: document.getElementById("recipientInput"),
+      contextTopicInput: document.getElementById("contextTopicInput"),
+      queryStatus: document.getElementById("queryStatus"),
+      reportStatus: document.getElementById("reportStatus"),
+      mainOutput: document.getElementById("mainOutput"),
+      snapshotOutput: document.getElementById("snapshotOutput"),
+      contextOutput: document.getElementById("contextOutput"),
+      runQueryButton: document.getElementById("runQueryButton"),
+      sendReportButton: document.getElementById("sendReportButton"),
+      loadSnapshotButton: document.getElementById("loadSnapshotButton"),
+      loadCostButton: document.getElementById("loadCostButton"),
+      loadWorkloadsButton: document.getElementById("loadWorkloadsButton"),
+      loadContextButton: document.getElementById("loadContextButton"),
+    };
+
+    async function request(path, options = {}) {
+      const response = await fetch(path, options);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || "Request failed.");
+      }
+      return data;
+    }
+
+    function setBusy(button, busy) {
+      button.disabled = busy;
+    }
+
+    function setLastAction(label) {
+      elements.actionMetric.textContent = `Last action: ${label}`;
+    }
+
+    function setMainOutput(text) {
+      state.lastOutput = text;
+      elements.mainOutput.textContent = text || "No response returned.";
+    }
+
+    async function loadHealth() {
+      try {
+        const data = await request("/health");
+        elements.healthMetric.textContent = `Health: ${data.status === "ok" ? "Healthy" : "Check"}`;
+      } catch (error) {
+        elements.healthMetric.textContent = "Health: Offline";
+      }
+    }
+
+    async function runAgentQuery() {
+      setBusy(elements.runQueryButton, true);
+      elements.queryStatus.textContent = "Running query...";
+      elements.userMetric.textContent = `User: ${elements.userIdInput.value || "developer"}`;
+
+      try {
+        const data = await request("/tools/query", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query: elements.queryInput.value,
+            user_id: elements.userIdInput.value || "developer",
+          }),
+        });
+        setMainOutput(data.result || "No response returned.");
+        elements.queryStatus.textContent = "Query finished.";
+        setLastAction("Query");
+      } catch (error) {
+        setMainOutput(String(error.message || error));
+        elements.queryStatus.textContent = "Query failed.";
+        setLastAction("Error");
+      } finally {
+        setBusy(elements.runQueryButton, false);
+      }
+    }
+
+    async function loadSnapshot() {
+      setBusy(elements.loadSnapshotButton, true);
+      try {
+        const data = await request("/tools/snapshot");
+        elements.snapshotOutput.textContent = [
+          "WORKLOADS",
+          data.workloads || "",
+          "",
+          "CONTEXT",
+          data.context || "",
+        ].join("\n");
+        setLastAction("Snapshot");
+      } catch (error) {
+        elements.snapshotOutput.textContent = String(error.message || error);
+        setLastAction("Error");
+      } finally {
+        setBusy(elements.loadSnapshotButton, false);
+      }
+    }
+
+    async function loadWorkloads() {
+      setBusy(elements.loadWorkloadsButton, true);
+      try {
+        const data = await request("/tools/workloads");
+        elements.snapshotOutput.textContent = data.result || "No workload data available.";
+        setLastAction("Workloads");
+      } catch (error) {
+        elements.snapshotOutput.textContent = String(error.message || error);
+        setLastAction("Error");
+      } finally {
+        setBusy(elements.loadWorkloadsButton, false);
+      }
+    }
+
+    async function loadCostAnalysis() {
+      setBusy(elements.loadCostButton, true);
+      try {
+        const data = await request("/tools/cost-analysis");
+        elements.snapshotOutput.textContent = data.result || "No cost analysis data available.";
+        setLastAction("Cost");
+      } catch (error) {
+        elements.snapshotOutput.textContent = String(error.message || error);
+        setLastAction("Error");
+      } finally {
+        setBusy(elements.loadCostButton, false);
+      }
+    }
+
+    async function loadContext() {
+      setBusy(elements.loadContextButton, true);
+      try {
+        const topic = encodeURIComponent(elements.contextTopicInput.value || "");
+        const data = await request(`/tools/context?topic=${topic}`);
+        elements.contextOutput.textContent = data.result || "No context available.";
+        setLastAction("Context");
+      } catch (error) {
+        elements.contextOutput.textContent = String(error.message || error);
+        setLastAction("Error");
+      } finally {
+        setBusy(elements.loadContextButton, false);
+      }
+    }
+
+    async function sendReport() {
+      if (!state.lastOutput) {
+        elements.reportStatus.textContent = "Run a query first.";
+        return;
+      }
+
+      setBusy(elements.sendReportButton, true);
+      elements.reportStatus.textContent = "Sending report...";
+      try {
+        const data = await request("/tools/report", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            analysis_summary: state.lastOutput,
+            recipient_email: elements.recipientInput.value || undefined,
+          }),
+        });
+        elements.reportStatus.textContent = data.result || "Report sent.";
+        setLastAction("Report");
+      } catch (error) {
+        elements.reportStatus.textContent = String(error.message || error);
+        setLastAction("Error");
+      } finally {
+        setBusy(elements.sendReportButton, false);
+      }
+    }
+
+    elements.runQueryButton.addEventListener("click", runAgentQuery);
+    elements.sendReportButton.addEventListener("click", sendReport);
+    elements.loadSnapshotButton.addEventListener("click", loadSnapshot);
+    elements.loadCostButton.addEventListener("click", loadCostAnalysis);
+    elements.loadWorkloadsButton.addEventListener("click", loadWorkloads);
+    elements.loadContextButton.addEventListener("click", loadContext);
+
+    loadHealth();
+    loadContext();
+  </script>
+</body>
+</html>

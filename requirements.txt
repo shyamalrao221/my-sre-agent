@@ -1,0 +1,8 @@
+google-adk
+google-genai
+google-cloud-logging
+google-cloud-container
+google-cloud-monitoring
+kubernetes
+python-dotenv
+fpdf2
