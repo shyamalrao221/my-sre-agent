@@ -13,6 +13,7 @@ from .tools import (
     fetch_all_workload_statuses,
     fetch_cost_optimization_snapshot,
     fetch_historical_resource_analysis,
+    fetch_pod_usage_since_start,
 )
 
 
@@ -82,6 +83,11 @@ class RemoteToolHandler(BaseHTTPRequestHandler):
                 return
 
             self._write_json({"result": fetch_historical_resource_analysis(namespace=namespace, days=days)})
+            return
+
+        if route == "/tools/pod-usage-since-start":
+            namespace = params.get("namespace", ["default"])[0] or "default"
+            self._write_json({"result": fetch_pod_usage_since_start(namespace=namespace)})
             return
 
         if route == "/tools/context":

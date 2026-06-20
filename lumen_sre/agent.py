@@ -1,6 +1,22 @@
 import asyncio
+import os
+import re
 from dataclasses import dataclass
 from google.genai import types
+import google.auth
+
+# --- ENFORCE VERTEX AI BACKEND VIA DYNAMIC DISCOVERY ---
+# This ensures google.genai uses Vertex AI (ADC) instead of complaining about missing Gemini API keys.
+os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
+if not os.getenv("GOOGLE_CLOUD_LOCATION"):
+    os.environ["GOOGLE_CLOUD_LOCATION"] = "us-central1"
+
+try:
+    _, _discovered_project = google.auth.default()
+    if _discovered_project:
+        os.environ["GOOGLE_CLOUD_PROJECT"] = _discovered_project
+except Exception:
+    pass
 
 from google.adk.agents import Agent
 from google.adk.runners import Runner
@@ -12,36 +28,48 @@ from .tools import (
     fetch_all_workload_statuses,
     fetch_cost_optimization_snapshot,
     fetch_historical_resource_analysis,
+    fetch_pod_usage_since_start,
+    evaluate_cluster_infrastructure,
+    analyze_billing_vs_utilization,
+    manage_kubernetes_secret,
 )
 
 # --- 3. THE SRE ENGINE (ADK ENTRY POINT) ---
 
 root_agent = Agent(
-    name="SRE_Automation_Agent",
+    name="CloudOptix_SRE_Agent",
     model="gemini-2.5-flash",
     instruction="""
-You are a Lead Google Cloud SRE focused on safe, evidence-based cost optimization for Kubernetes workloads.
+You are a Lead Google Cloud SRE functioning as the core "CloudOptix - Insight to Optimize" agent. 
+Your goal is to provide full workload visibility, AI-driven optimization recommendations, financial billing analysis, and day-to-day developer utilities.
 
-1. For long-term cost questions, call fetch_historical_resource_analysis first so the answer is based on 30- to 60-day CPU and memory history when available.
-2. For live cost questions, call fetch_cost_optimization_snapshot. Treat it as a current snapshot of application workloads, not a long-term savings model.
-3. If the user asks for a broader operational view, call fetch_all_workload_statuses to inspect health and current pod usage.
-4. Call get_developer_context when runbooks, architecture context, or legacy remediation guidance would help explain recommendations or remediation steps.
-5. Never invent pod names, resource requests, limits, or savings percentages.
-6. If the tools do not provide real historical metrics, explicitly say that 30- or 60-day cost analysis is unavailable and keep the recommendation scoped to current signals.
-7. Only call create_and_send_report when the user explicitly asks for a formal RCA PDF or a stakeholder-ready report.
-8. Answer the user's exact query and clearly separate confirmed facts, live snapshot signals, and unavailable historical data.
+1. **Optimization vs Billing:** If the user asks for financial or billing analysis vs utilization, call analyze_billing_vs_utilization first.
+2. **Infrastructure:** If the user asks about disks, PVCs, empty node pools, or cluster infrastructure, call evaluate_cluster_infrastructure.
+3. **Utility Secrets Check/Manage:** If the user wants to create or delete a Kubernetes secret (acting as a developer utility), use the manage_kubernetes_secret tool.
+4. For long-term cost questions, call fetch_historical_resource_analysis first so the answer is based on 30- to 60-day CPU and memory history.
+5. For live cost questions, call fetch_cost_optimization_snapshot. 
+6. If the user asks for pod-instance usage from pod start until now, call fetch_pod_usage_since_start.
+7. Call get_developer_context when documentation or architecture context helps.
+8. Only call create_and_send_report when asked for a formal RCA PDF or exportable report.
+9. Answer the user's exact query closely. Use strict markdown. If a fixed-width table is provided by the tool, MUST maintain the table code blocks exactly as given.
 """,
     tools=[
         fetch_cost_optimization_snapshot,
         fetch_historical_resource_analysis,
+        fetch_pod_usage_since_start,
         fetch_all_workload_statuses,
         get_developer_context,
         create_and_send_report,
+        evaluate_cluster_infrastructure,
+        analyze_billing_vs_utilization,
+        manage_kubernetes_secret,
     ]
 )
 
-DEFAULT_QUERY = "Show a 30-day historical resource analysis for the default namespace."
-DEFAULT_USER_ID = "shyamsuri955"
+import os
+
+DEFAULT_QUERY = "Show a 60-day historical resource analysis for the default namespace."
+DEFAULT_USER_ID = os.getenv("DEFAULT_USER_ID", "local_user")
 APP_NAME = "Lumen_SRE"
 
 
@@ -51,6 +79,44 @@ class SREAgentManager:
 
     agent: Agent
     app_name: str = APP_NAME
+
+    def _try_direct_tool_response(self, user_query: str) -> str | None:
+        normalized = user_query.strip().lower()
+        namespace = self._extract_namespace(user_query)
+
+        if "pod usage since start" in normalized or "since start" in normalized:
+            return fetch_pod_usage_since_start(namespace=namespace)
+
+        if "cost optimization snapshot" in normalized or "current snapshot" in normalized:
+            return fetch_cost_optimization_snapshot(namespace=namespace)
+
+        if "billing vs utilization" in normalized or "effective billing" in normalized:
+            return analyze_billing_vs_utilization(namespace=namespace)
+
+        if "infrastructure evaluation" in normalized or "evaluate infrastructure" in normalized or "unused disks" in normalized:
+            return evaluate_cluster_infrastructure(namespace=namespace)
+
+        if "historical resource analysis" in normalized or ("historical" in normalized and "analysis" in normalized):
+            return fetch_historical_resource_analysis(namespace=namespace, days=self._extract_days(user_query))
+
+        if "all workload statuses" in normalized or "broader operational view" in normalized:
+            return fetch_all_workload_statuses(namespace=namespace)
+
+        return None
+
+    @staticmethod
+    def _extract_namespace(user_query: str) -> str:
+        match = re.search(r"\bnamespace\s+([a-z0-9-]+)", user_query, re.IGNORECASE)
+        if match:
+            return match.group(1)
+        return "default"
+
+    @staticmethod
+    def _extract_days(user_query: str) -> int:
+        match = re.search(r"\b(7|30|60)\s*[- ]?day\b", user_query, re.IGNORECASE)
+        if match:
+            return int(match.group(1))
+        return 60
 
     async def run_query(self, user_query: str, user_id: str = DEFAULT_USER_ID) -> str:
         session_service = InMemorySessionService()
@@ -78,6 +144,12 @@ class SREAgentManager:
         recipient: str | None = None,
         auto_send_report: bool = False,
     ) -> str:
+        direct_response = self._try_direct_tool_response(user_query)
+        if direct_response is not None:
+            if auto_send_report and direct_response:
+                create_and_send_report(direct_response, recipient_email=recipient)
+            return direct_response
+
         try:
             response = await self.run_query(user_query=user_query, user_id=user_id)
         except Exception as exc:

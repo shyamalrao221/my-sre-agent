@@ -6,3 +6,7 @@ google-cloud-monitoring
 kubernetes
 python-dotenv
 fpdf2
+google-cloud-secret-manager
+google-auth
+
+pip install -r requirements.txt
