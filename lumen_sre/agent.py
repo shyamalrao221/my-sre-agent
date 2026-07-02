@@ -42,6 +42,15 @@ from .tools import (
     scan_gcp_resources,
     scan_full_gcp_resources,
     analyze_actual_gcp_billing,
+    fetch_actual_gcp_billing,
+    analyze_billing_efficiency,
+    audit_iam_permissions,
+    rotate_service_account_keys,
+    enable_required_apis,
+    list_cloud_resources_by_label,
+    forecast_monthly_cost,
+    predict_resource_growth,
+    detect_cost_anomalies,
 )
 
 
@@ -95,6 +104,58 @@ Current CloudOptix Project Context:
 - namespace: {context.get("namespace", "default")}
 - region/location/zone: {context.get("region") or context.get("location") or context.get("zone") or "not provided"}
 """
+
+
+def _update_context_from_query(user_query: str):
+    try:
+        from .project_context import set_project_context
+    except Exception:
+        return
+
+    existing = _get_project_context().copy()
+    updated = False
+
+    project_match = None
+
+    # Only accept explicit project_id forms to avoid false matches such as
+    # "Project Context" being parsed as project ID "Context".
+    for pattern in (
+        r"\bproject_id\s*[:=]\s*['\"]?([a-z][a-z0-9-]{4,})['\"]?\b",
+        r"\bproject\s+id\s*[:=]\s*['\"]?([a-z][a-z0-9-]{4,})['\"]?\b",
+        r"['\"]project_id['\"]\s*:\s*['\"]([a-z][a-z0-9-]{4,})['\"]",
+    ):
+        project_match = re.search(pattern, user_query, re.IGNORECASE)
+
+        if project_match:
+            break
+
+    if project_match:
+        project_id = project_match.group(1)
+
+        if existing.get("project_id") != project_id:
+            existing["project_id"] = project_id
+            updated = True
+
+    namespace_match = None
+
+    for pattern in (
+        r"\bnamespace\s*[:=]\s*['\"]?([a-z0-9-]+)['\"]?\b",
+        r"['\"]namespace['\"]\s*:\s*['\"]([a-z0-9-]+)['\"]",
+    ):
+        namespace_match = re.search(pattern, user_query, re.IGNORECASE)
+
+        if namespace_match:
+            break
+
+    if namespace_match:
+        namespace = namespace_match.group(1)
+
+        if existing.get("namespace") != namespace:
+            existing["namespace"] = namespace
+            updated = True
+
+    if updated:
+        set_project_context(existing)
 
 
 # ----------------------------------------------------------------------
@@ -166,6 +227,15 @@ RESPONSE FORMAT:
         scan_gcp_resources,
         scan_full_gcp_resources,
         analyze_actual_gcp_billing,
+        fetch_actual_gcp_billing,
+        analyze_billing_efficiency,
+        audit_iam_permissions,
+        rotate_service_account_keys,
+        enable_required_apis,
+        list_cloud_resources_by_label,
+        forecast_monthly_cost,
+        predict_resource_growth,
+        detect_cost_anomalies,
     ],
 )
 
@@ -319,6 +389,100 @@ class SREAgentManager:
         ):
             return fetch_all_workload_statuses(namespace=namespace)
 
+        # ============================================================
+        # PHASE 1: BILLING ANALYSIS - USE CASE 03
+        # ============================================================
+        if (
+            "actual billing" in normalized
+            or "real billing" in normalized
+            or "bigquery billing" in normalized
+            or "true cost" in normalized
+        ):
+            return fetch_actual_gcp_billing(
+                days=self._extract_days(user_query, default_days=30)
+            )
+
+        if (
+            "billing efficiency" in normalized
+            or "cost vs utilization" in normalized
+            or "billing vs utilization" in normalized
+            or "efficiency analysis" in normalized
+        ):
+            return analyze_billing_efficiency(
+                namespace=namespace,
+                days=self._extract_days(user_query, default_days=30)
+            )
+
+        # ============================================================
+        # PHASE 2: GCP UTILITY FUNCTIONS - USE CASE 05
+        # ============================================================
+        if (
+            "audit iam" in normalized
+            or "iam permissions" in normalized
+            or "check permissions" in normalized
+            or "service account access" in normalized
+        ):
+            return audit_iam_permissions(project_id=_get_context_project_id())
+
+        if (
+            "rotate key" in normalized
+            or "rotate service account" in normalized
+            or "key rotation" in normalized
+            or "token rotation" in normalized
+        ):
+            return rotate_service_account_keys(project_id=_get_context_project_id())
+
+        if (
+            "enable api" in normalized
+            or "required api" in normalized
+            or "api status" in normalized
+            or "gcp api" in normalized
+        ):
+            return enable_required_apis(project_id=_get_context_project_id())
+
+        if (
+            "resources by label" in normalized
+            or "label query" in normalized
+            or "find resources" in normalized
+            or "resource discovery" in normalized
+        ):
+            return list_cloud_resources_by_label(
+                project_id=_get_context_project_id()
+            )
+
+        # ============================================================
+        # PHASE 3: AI OPTIMIZATION - USE CASE 04
+        # ============================================================
+        if (
+            "forecast cost" in normalized
+            or "cost forecast" in normalized
+            or "projected cost" in normalized
+            or "monthly forecast" in normalized
+        ):
+            return forecast_monthly_cost(
+                project_id=_get_context_project_id(),
+                days=self._extract_days(user_query, default_days=30)
+            )
+
+        if (
+            "resource growth" in normalized
+            or "growth prediction" in normalized
+            or "predict capacity" in normalized
+            or "capacity planning" in normalized
+        ):
+            return predict_resource_growth(
+                namespace=namespace,
+                days=self._extract_days(user_query, default_days=30)
+            )
+
+        if (
+            "cost anomal" in normalized
+            or "detect anomal" in normalized
+            or "cost spike" in normalized
+            or "unusual cost" in normalized
+        ):
+            return detect_cost_anomalies(project_id=_get_context_project_id())
+
         return None
 
     @staticmethod
@@ -398,6 +562,8 @@ class SREAgentManager:
         """
         Main query handler used by remote_mcp_server.py.
         """
+        _update_context_from_query(user_query)
+
         context_summary = _build_context_summary()
 
         enhanced_query = f"""

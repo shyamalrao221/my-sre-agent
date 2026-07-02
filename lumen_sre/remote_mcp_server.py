@@ -8,7 +8,16 @@ from urllib.parse import parse_qs, urlparse
 
 from .project_context import set_project_context, get_project_context
 
-from .agent import manager
+# ✅ LAZY LOAD: Import agent only when needed to avoid blocking on startup
+_manager = None
+
+def _get_manager():
+    global _manager
+    if _manager is None:
+        from .agent import manager
+        _manager = manager
+    return _manager
+
 from .knowledge import get_developer_context
 from .tools import (
     create_and_send_report,
@@ -160,6 +169,7 @@ User Query:
 {query}
 """
 
+            manager = _get_manager()
             result = asyncio.run(
                 manager.handle_query(
                     user_query=query_with_context,
@@ -189,10 +199,12 @@ User Query:
 
 # ✅ SERVER START
 def main(host: str = "127.0.0.1", port: int = 8080, open_browser_on_start: bool = True):
+    print(f"[SERVER] Initializing CloudOptix MCP server...", flush=True)
+    
     server = HTTPServer((host, port), RemoteToolHandler)
     app_url = f"http://{host}:{port}"
 
-    print(f"Remote CloudOptix server running at {app_url}")
+    print(f"[SERVER] ✅ CloudOptix remote server running at {app_url}", flush=True)
 
     if open_browser_on_start:
         threading.Timer(0.4, lambda: webbrowser.open(app_url)).start()
@@ -200,7 +212,7 @@ def main(host: str = "127.0.0.1", port: int = 8080, open_browser_on_start: bool 
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        pass
+        print("[SERVER] Shutting down...", flush=True)
     finally:
         server.server_close()
 
